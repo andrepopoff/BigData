@@ -121,44 +121,85 @@ pep8 .
 """
 
 import logging
-
+import vk
 import sys
+import json
+import pandas as pd
+import matplotlib.pyplot as plt
 
-from scrappers.scrapper import Scrapper
-from storages.file_storage import FileStorage
+from datetime import date
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-
-SCRAPPED_FILE = 'scrapped_data.txt'
-TABLE_FORMAT_FILE = 'data.csv'
+MY_USER_ID = '7978511'
+API_URL = 'https://api.vk.com/method/'
+APP_ID = '6273721'
 
 
 def gather_process():
     logger.info("gather")
-    storage = FileStorage(SCRAPPED_FILE)
 
-    # You can also pass a storage
-    scrapper = Scrapper()
-    scrapper.scrap_process(storage)
+    # Чтение логина и пароля ВК из файла
+    with open('auth_data.txt', 'r') as f:
+        try:
+            login, password = [line.rstrip() for line in f]
+        except ValueError:
+            return 'В файле auth_data.txt должны быть только 2 строки - логин и пароль!'
+
+    # Получаем список друзей в ВК
+    session = vk.AuthSession(app_id=APP_ID, user_login=login, user_password=password)
+    vk_api = vk.API(session, timeout=30)
+    friends = vk_api.friends.get(v='3.0', user_id=MY_USER_ID,
+                                 fields='domain, sex, bdate, city, country, timezone, has_mobile, contacts, education, online, relation, last_seen, status, universities')
+
+    # Сохраняем в формате json
+    with open('friends.json', 'w') as f:
+        json.dump(friends, f, indent=2, ensure_ascii=False)
 
 
 def convert_data_to_table_format():
     logger.info("transform")
-
-    # Your code here
-    # transform gathered data from txt file to pandas DataFrame and save as csv
-    pass
+    friends = pd.read_json('friends.json')
+    friends.to_csv('friends.csv')
 
 
 def stats_of_data():
-    logger.info("stats")
+    friends = pd.read_csv('friends.csv')
 
-    # Your code here
-    # Load pandas DataFrame and print to stdout different statistics about the data.
-    # Try to think about the data and use not only describe and info.
-    # Ask yourself what would you like to know about this data (most frequent word, or something else)
+    print('Кол-во друзей в выборке: {} чел.'.format(friends.shape[0]))
+    print('Онлайн: {} чел.'.format(len(friends[friends['online'] > 0])))
+    print('Женаты / замужем: {} чел.'.format(len(friends[friends['relation'] == 4])))
+    print('Из России: {} чел.'.format(len(friends[friends['country'] == 1])))
+    print('Из Таиланда: {} чел.'.format(len(friends[friends['country'] == 191])))
+
+    # Дата рождения --> Возраст друга
+    ages = []
+    for d in friends['bdate']:
+        if isinstance(d, str):
+            bdate = d.split('.')
+            if len(bdate) == 3:
+                bdate = date(int(bdate[-1]), int(bdate[-2]), int(bdate[-3]))
+                today = date.today()
+                age = today.year - bdate.year
+                if today.month < bdate.month:
+                    age -= 1
+                elif today.month == bdate.month and today.day < bdate.day:
+                    age -= 1
+                ages.append(age)
+
+    print('Средний возраст друга: {} лет'.format(round(sum(ages) / len(ages), 1)))
+    print('Минимальный возраст: {} лет'.format(min(ages)))
+    print('Максимальный возраст: {} лет\n'.format(max(ages)))
+    print('Кол-во женщин (1) и мужчин (2) среди друзей:\n{}\n'.format(friends['sex'].value_counts()))
+    print('Кол-во удаленных и забаненных друзей:\n{}\n'.format(friends['deactivated'].value_counts()))
+
+    friends.hist('city')
+    friends.hist('sex')
+    friends.hist('country')
+    friends.hist('online')
+    plt.show()
 
 
 if __name__ == '__main__':
