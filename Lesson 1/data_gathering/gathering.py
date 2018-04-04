@@ -134,22 +134,14 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 MY_USER_ID = '7978511'
-API_URL = 'https://api.vk.com/method/'
 APP_ID = '6273721'
 
 
 def gather_process():
     logger.info("gather")
 
-    # Чтение логина и пароля ВК из файла
-    with open('auth_data.txt', 'r') as f:
-        try:
-            login, password = [line.rstrip() for line in f]
-        except ValueError:
-            return 'В файле auth_data.txt должны быть только 2 строки - логин и пароль!'
-
     # Получаем список друзей в ВК
-    session = vk.AuthSession(app_id=APP_ID, user_login=login, user_password=password)
+    session = vk.Session()
     vk_api = vk.API(session, timeout=30)
     friends = vk_api.friends.get(v='3.0', user_id=MY_USER_ID,
                                  fields='domain, sex, bdate, city, country, timezone, has_mobile, contacts, education, online, relation, last_seen, status, universities')
