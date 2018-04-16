@@ -1,2 +1,3 @@
 *.py
 *.openfoodfacts.org.products.tsv
+/.en.openfoodfacts.org.products.tsv.icloud
